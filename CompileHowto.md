@@ -122,3 +122,54 @@ sudo make install
 ```
 sudo mkdir -p /usr/local/share/hyperion/effects && sudo cp -R ../effects/ /usr/local/share/hyperion/effects/
 ```
+
+# Make hyperiond start as a mac service
+If you want to have hyperiond running at system start, you can use the ``org.hyperion-project.hyperiond.plist`` file in the ``bin/service/`` folder. Open it and modify the path to point to your ``hyperion.config.json`` and ``hyperiond`` file, e.g.:
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>Label</key>
+    <string>org.hyperion-project.hyperiond</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/share/hyperion/bin/hyperiond</string>
+        <string>/usr/local/share/hyperion/config/hyperion.config.json</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+</dict>
+</plist>
+```
+
+Copy it with this command:
+
+```bash
+sudo cp bin/service/org.hyperion-project.hyperiond.plist /Library/LaunchDaemons/org.hyperion-project.hyperiond.plist
+```
+
+Your ``hyperion.config.json`` must be owned by root and group admin:
+
+```bash
+sudo chown root:admin /usr/local/share/hyperion/config/hyperion.config.json
+```
+
+You can now load the service with
+
+```bash
+sudo launchctl load -w /Library/LaunchDaemons/org.hyperion-project.hyperiond.plist
+```
+
+If you ever decide to disable this service, use 
+
+```bash
+sudo launchctl unload -w /Library/LaunchDaemons/org.hyperion-project.hyperiond.plist
+```
+
+This disables a running hyperiond. To permamently remove this (as this service would be started again on reboot) delete the plist file from the ``LaunchDaemons`` folder.
+
+The Mac OS Console app will allow you to take a look at any error messages during the startup of hyperion. The file to watch is the ``system.log``
