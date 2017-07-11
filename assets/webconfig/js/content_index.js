@@ -1,81 +1,84 @@
 $(document).ready( function() {
-	$("#main-nav").hide();
-	$("#loading_overlay").addClass("overlay");
+	var uiLock = false;
+	var prevSess = 0;
+
 	loadContentTo("#container_connection_lost","connection_lost");
+	loadContentTo("#container_restart","restart");
 	initWebSocket();
-	bindNavToContent("#load_dashboard","dashboard",true);
-	bindNavToContent("#load_remote","remote",false);
-	bindNavToContent("#load_huebridge","huebridge",false);
-	bindNavToContent("#load_support","support",false);
-	bindNavToContent("#load_confKodi","kodiconf",false);
-	bindNavToContent("#load_update","update",false);
-	bindNavToContent("#load_confEffects","effects",false);
-	bindNavToContent("#load_confLeds","leds",false);
-	bindNavToContent("#load_confGrabber","grabber",false);
-	bindNavToContent("#load_confColors","colors",false);
-	bindNavToContent("#load_confNetwork","network",false);
-	bindNavToContent("#load_effectsconfig","effects_configurator",false);
-
-
-	//Change all Checkboxes to Switches
-	$("[type='checkbox']").bootstrapSwitch();
 
 	$(hyperion).on("cmd-serverinfo",function(event){
-		parsedServerInfoJSON = event.response;
-		currentVersion = parsedServerInfoJSON.info.hyperion[0].version;
-		cleanCurrentVersion = currentVersion.replace(/\./g, '');
-
-		if (parsedServerInfoJSON.info.hyperion[0].config_modified)
+		serverInfo = event.response.info;
+		$(hyperion).trigger("ready");
+		
+		if (serverInfo.hyperion.config_modified)
 			$("#hyperion_reload_notify").fadeIn("fast");
 		else
 			$("#hyperion_reload_notify").fadeOut("fast");
 
-		// get active led device
-		var leddevice = parsedServerInfoJSON.info.ledDevices.active;
-		$('#dash_leddevice').html(leddevice);
-		// get host
-		var hostname = parsedServerInfoJSON.info.hostname;
-		$('#dash_systeminfo').html(hostname+':'+hyperionport);
-
-		var components = parsedServerInfoJSON.info.components;
-		components_html = "";
-		for ( idx=0; idx<components.length;idx++)
+		if (serverInfo.hyperion.off)
+			$("#hyperion_disabled_notify").fadeIn("fast");
+		else
+			$("#hyperion_disabled_notify").fadeOut("fast");
+		
+		if ($("#logmessages").length == 0 && loggingStreamActive)
 		{
-			console.log()
-			components_html += '<tr><td lang="en" data-lang-token="general_comp_'+components[idx].name+'">'+(components[idx].title)+'</td><td><i class="fa fa-circle component-'+(components[idx].enabled?"on":"off")+'"></i></td></tr>';
+			requestLoggingStop();
+			loggingStreamActive = false;
 		}
-		$("#tab_components").html(components_html);
 
-		$.get( "https://raw.githubusercontent.com/hyperion-project/hyperion.ng/master/version.json", function( data ) {
-			parsedUpdateJSON = JSON.parse(data);
-			latestVersion = parsedUpdateJSON[0].versionnr;
-			cleanLatestVersion = latestVersion.replace(/\./g, '');
+		if (!serverInfo.hyperion.config_writeable)
+		{
+			showInfoDialog('uilock',$.i18n('InfoDialog_nowrite_title'),$.i18n('InfoDialog_nowrite_text'));
+			$('#wrapper').toggle(false);
+			uiLock = true;
+		}
+		else if (uiLock)
+		{
+			$("#modal_dialog").modal('hide');
+			$('#wrapper').toggle(true);
+			uiLock = false;
+		}
 
-			$('#currentversion').html(' V'+currentVersion);
-			$('#latestversion').html(' V'+latestVersion);
-
-			if ( cleanCurrentVersion < cleanLatestVersion )
+		var sess = serverInfo.hyperion.sessions;
+		if (sess.length != prevSess)
+		{
+			wSess = [];
+			prevSess = sess.length;
+			for(var i = 0; i<sess.length; i++)
 			{
-				$('#versioninforesult').html('<div lang="en" data-lang-token="dashboard_infobox_message_updatewarning" style="margin:0px;" class="alert alert-warning">A newer version of Hyperion is available!</div>');
+				if(sess[i].type == "_hyperiond-http._tcp.")
+				{
+					wSess.push(sess[i]);  
+				}
 			}
+			
+			if (wSess.length > 1)
+				$('#btn_instanceswitch').toggle(true);
 			else
-			{
-				$('#versioninforesult').html('<div  lang="en" data-lang-token="dashboard_infobox_message_updatesuccess" style="margin:0px;" class="alert alert-success">You run the latest version of Hyperion.</div>');
-			}
-		});
-		$("#loading_overlay").removeClass("overlay");
-		$("#main-nav").show('slide', {direction: 'left'}, 1000);
+				$('#btn_instanceswitch').toggle(false);
+		}
 
 	}); // end cmd-serverinfo
 
+	$(hyperion).one("cmd-sysinfo", function(event) {
+		requestServerInfo();
+		sysInfo = event.response.info;
+
+		currentVersion = sysInfo.hyperion.version;
+	});
+	
 	$(hyperion).one("cmd-config-getschema", function(event) {
-		parsedConfSchemaJSON = event.response.result;
+		serverSchema = event.response.result;
 		requestServerConfig();
+		
+		schema = serverSchema.properties;
 	});
 
 	$(hyperion).one("cmd-config-getconfig", function(event) {
-		parsedConfJSON = event.response.result;
-		requestServerInfo();
+		serverConfig = event.response.result;
+		requestSysInfo();
+		
+		showOptHelp = serverConfig.general.showOptHelp;
 	});
 
 	$(hyperion).on("error",function(event){
@@ -85,14 +88,20 @@ $(document).ready( function() {
 	$(hyperion).on("open",function(event){
 		requestServerConfigSchema();
 	});
-
-	$("#btn_hyperion_reload").on("click", function(){
-		$(hyperion).off();
-		requestServerConfigReload();
-		watchdog = 1;
-		$("#wrapper").fadeOut("slow");
-		cron();
+	
+	$(hyperion).one("ready", function(event) {
+		loadContent();
 	});
+	
+	$("#btn_hyperion_reload").on("click", function(){
+		initRestart();
+	});
+	
+	$(".mnava").bind('click.menu', function(e){
+		loadContent(e);
+		window.scrollTo(0, 0);
+	});
+
 });
 
 $(function(){

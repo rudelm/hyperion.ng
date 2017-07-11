@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QSerialPort>
 #include <QTimer>
+#include <QString>
 
 // Leddevice includes
 #include <leddevice/LedDevice.h>
@@ -39,22 +40,6 @@ public:
 	///
 	int open();
 
-protected:
-	/**
-	 * Writes the given bytes to the RS232-device and
-	 *
-	 * @param[in[ size The length of the data
-	 * @param[in] data The data
-	 *
-	 * @return Zero on succes else negative
-	 */
-	int writeBytes(const qint64 size, const uint8_t *data);
-
-	void closeDevice();
-
-	/// The RS232 serial-device
-	QSerialPort _rs232Port;
-
 private slots:
 	/// Write the last data to the leds again
 	int rewriteLeds();
@@ -65,12 +50,30 @@ private slots:
 	void bytesWritten(qint64 bytes);
 	void readyRead();
 
+signals:
+	void receivedData(QByteArray data);
+
 protected:
+	/**
+	 * Writes the given bytes to the RS232-device and
+	 *
+	 * @param[in[ size The length of the data
+	 * @param[in] data The data
+	 *
+	 * @return Zero on success else negative
+	 */
+	int writeBytes(const qint64 size, const uint8_t *data);
+
+	void closeDevice();
+
+	QString findSerialDevice();
+
 	// tries to open device if not opened
 	bool tryOpen(const int delayAfterConnect_ms);
-	
+
+
 	/// The name of the output device
-	std::string _deviceName;
+	QString _deviceName;
 
 	/// The used baudrate of the output device
 	qint32 _baudRate_Hz;
@@ -79,7 +82,7 @@ protected:
 	int _delayAfterConnect_ms;
 
 	/// The RS232 serial-device
-//	QSerialPort _rs232Port;
+	QSerialPort _rs232Port;
 
 	bool _blockedForDelay;
 	
@@ -89,9 +92,7 @@ protected:
 	qint64 _bytesWritten;
 	qint64 _frameDropCounter;
 	QSerialPort::SerialPortError _lastError;
-	
-	/// Timer object which makes sure that led data is written at a minimum rate
-	/// e.g. Adalight device will switch off when it does not receive data at least
-	/// every 15 seconds
-	QTimer _timer;
+	qint64                       _preOpenDelayTimeOut;
+	int                          _preOpenDelay;
+	bool                         _enableAutoDeviceName;
 };

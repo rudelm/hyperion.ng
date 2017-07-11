@@ -4,64 +4,76 @@
 	"properties":{
 		"output" : {
 			"type": "string",
-			"title":"Target IP",
+			"title":"edt_dev_spec_targetIp_title",
 			"default" : "127.0.0.1",
 			"propertyOrder" : 1
 		},
 		"port" : {
-			"type": "integer",
-			"title":"Port",
+			"type": "number",
+			"title":"edt_dev_spec_port_title",
 			"default": 7890,
 			"propertyOrder" : 2
 		},
-		"setFcConfig": {
-			"type": "boolean",
-			"title":"Set fadecandy Configuration",
-			"default": false,
+		"latchTime": {
+			"type": "integer",
+			"title":"edt_dev_spec_latchtime_title",
+			"default": 1,
+			"append" : "edt_append_ms",
+			"minimum": 1,
+			"maximum": 1000,
+			"access" : "expert",
 			"propertyOrder" : 3
 		},
-		"manualLed": {
+		"setFcConfig": {
 			"type": "boolean",
-			"title":"Manual control of fadecandy LED",
+			"title":"edt_dev_spec_FCsetConfig_title",
 			"default": false,
 			"propertyOrder" : 4
 		},
-		"ledOn": {
+		"manualLed": {
 			"type": "boolean",
-			"title":"Fadecandy LED set to on",
+			"title":"edt_dev_spec_FCmanualControl_title",
 			"default": false,
 			"propertyOrder" : 5
 		},
-		"interpolation": {
+		"ledOn": {
 			"type": "boolean",
-			"title":"Interpolation",
+			"title":"edt_dev_spec_FCledToOn_title",
 			"default": false,
 			"propertyOrder" : 6
 		},
-		"dither": {
+		"interpolation": {
 			"type": "boolean",
-			"title":"Dithering",
+			"title":"edt_dev_spec_interpolation_title",
 			"default": false,
 			"propertyOrder" : 7
 		},
+		"dither": {
+			"type": "boolean",
+			"title":"edt_dev_spec_dithering_title",
+			"default": false,
+			"propertyOrder" : 8
+		},
 		"gamma" : {
 			"type" : "number",
-			"minimum" : 0.0,
-			"maximum": 100.0,
-			"propertyOrder" : 8
+			"title" : "edt_dev_spec_gamma_title",
+			"minimum" : 0.1,
+			"maximum": 5.0,
+			"propertyOrder" : 9
 		},
 		"whitepoint" : {
 			"type" : "array",
-			"propertyOrder" : 9,
-			"default" : [1.0,1.0,1.0],
+			"title" : "edt_dev_spec_whitepoint_title",
+			"propertyOrder" : 10,
+			"default" : [255,255,255],
 			"maxItems" : 3,
 			"minItems" : 3,
-			"format" : "table",
+			"format" : "colorpicker",
 			"items" : {
-				"type" : "number",
-				"minimum" : 0.0,
-				"maximum": 1.0,
-				"default" : 1.0
+				"type" : "integer",
+				"minimum" : 0,
+				"maximum": 255,
+				"default" : 255
 			}
 		}
 	},

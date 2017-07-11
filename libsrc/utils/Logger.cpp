@@ -4,46 +4,50 @@
 #include <iostream>
 #include <algorithm>
 #include <syslog.h>
-#include <map>
 #include <QFileInfo>
-#include <QString>
+#include <time.h>
 
+static const char * LogLevelStrings[]   = { "", "DEBUG", "INFO", "WARNING", "ERROR" };
+static const int    LogLevelSysLog[]    = { LOG_DEBUG, LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERR };
+static unsigned int loggerCount         = 0;
+static unsigned int loggerId            = 0;
 
-static const char * LogLevelStrings[] = { "", "DEBUG", "INFO", "WARNING", "ERROR" };
-static const int    LogLevelSysLog[]  = { LOG_DEBUG, LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERR };
-static unsigned int loggerCount = 0;
-static unsigned int loggerId = 0;
-
-std::map<std::string,Logger*> *Logger::LoggerMap = nullptr;
+std::map<QString,Logger*> *Logger::LoggerMap = nullptr;
 Logger::LogLevel Logger::GLOBAL_MIN_LOG_LEVEL = Logger::UNSET;
+LoggerManager* LoggerManager::_instance = nullptr;
 
-
-Logger* Logger::getInstance(std::string name, Logger::LogLevel minLevel)
+Logger* Logger::getInstance(QString name, Logger::LogLevel minLevel)
 {
+	qRegisterMetaType<Logger::T_LOG_MESSAGE>();
+	Logger* log = nullptr;
 	if (LoggerMap == nullptr)
 	{
-		LoggerMap = new std::map<std::string,Logger*>;
+		LoggerMap = new std::map<QString,Logger*>;
 	}
 	
 	if ( LoggerMap->find(name) == LoggerMap->end() )
 	{
-		Logger* log = new Logger(name,minLevel);
-		LoggerMap->insert(std::pair<std::string,Logger*>(name,log)); // compat version, replace it with following line if we have 100% c++11
+		log = new Logger(name,minLevel);
+		LoggerMap->insert(std::pair<QString,Logger*>(name,log)); // compat version, replace it with following line if we have 100% c++11
 		//LoggerMap->emplace(name,log);  // not compat with older linux distro's e.g. wheezy
-		return log;
-	} 
-	
-	return LoggerMap->at(name);
+		connect(log, SIGNAL(newLogMessage(Logger::T_LOG_MESSAGE)), LoggerManager::getInstance(), SLOT(handleNewLogMessage(Logger::T_LOG_MESSAGE)));
+	}
+	else
+	{
+		log = LoggerMap->at(name);
+	}
+
+	return log;
 }
 
-void Logger::deleteInstance(std::string name)
+void Logger::deleteInstance(QString name)
 {
 	if (LoggerMap == nullptr)
 		return;
 	
-	if ( name.empty() )
+	if ( name.isEmpty() )
 	{
-		std::map<std::string,Logger*>::iterator it;
+		std::map<QString,Logger*>::iterator it;
 		for ( it=LoggerMap->begin(); it != LoggerMap->end(); it++)
 		{
 			delete it->second;
@@ -58,9 +62,9 @@ void Logger::deleteInstance(std::string name)
 
 }
 
-void Logger::setLogLevel(LogLevel level,std::string name)
+void Logger::setLogLevel(LogLevel level,QString name)
 {
-	if ( name.empty() )
+	if ( name.isEmpty() )
 	{
 		GLOBAL_MIN_LOG_LEVEL = level;
 	}
@@ -71,9 +75,9 @@ void Logger::setLogLevel(LogLevel level,std::string name)
 	}
 }
 
-Logger::LogLevel Logger::getLogLevel(std::string name)
+Logger::LogLevel Logger::getLogLevel(QString name)
 {
-	if ( name.empty() )
+	if ( name.isEmpty() )
 	{
 		return GLOBAL_MIN_LOG_LEVEL;
 	}
@@ -82,19 +86,20 @@ Logger::LogLevel Logger::getLogLevel(std::string name)
 	return log->getMinLevel();
 }
 
-Logger::Logger ( std::string name, LogLevel minLevel ):
-	_name(name),
-	_minLevel(minLevel),
-	_syslogEnabled(true),
-	_loggerId(loggerId++)
+Logger::Logger ( QString name, LogLevel minLevel )
+	: QObject()
+	, _name(name)
+	, _minLevel(minLevel)
+	, _syslogEnabled(true)
+	, _loggerId(loggerId++)
 {
 #ifdef __GLIBC__
     const char* _appname_char = program_invocation_short_name;
 #else
     const char* _appname_char = getprogname();
 #endif
-	_appname = std::string(_appname_char);
-	std::transform(_appname.begin(), _appname.end(),_appname.begin(), ::toupper);
+	_appname = QString(_appname_char).toLower();
+	
 
 	loggerCount++;
 
@@ -106,7 +111,7 @@ Logger::Logger ( std::string name, LogLevel minLevel ):
 
 Logger::~Logger()
 {
-	Debug(this, "logger '%s' destroyed", _name.c_str() );
+	Debug(this, "logger '%s' destroyed", QSTRING_CSTR(_name) );
 	loggerCount--;
 	if ( loggerCount == 0 )
 		closelog();
@@ -126,20 +131,53 @@ void Logger::Message(LogLevel level, const char* sourceFile, const char* func, u
 	vsnprintf (msg, max_msg_length, fmt, args);
 	va_end (args);
 
+	Logger::T_LOG_MESSAGE logMsg;
+
+	logMsg.appName     = _appname;
+	logMsg.loggerName  = _name;
+	logMsg.function    = QString(func);
+	logMsg.line        = line;
+	logMsg.fileName    = FileUtils::getBaseName(sourceFile);
+	time(&(logMsg.utime));
+	logMsg.message     = QString(msg);
+	logMsg.level       = level;
+	logMsg.levelString = LogLevelStrings[level];
+
+	emit newLogMessage(logMsg);
+
 	QString location;
-	QString function(func);
 	if ( level == Logger::DEBUG )
 	{
-		location = "<" + FileUtils::getBaseName(sourceFile) + ":" + QString::number(line)+":"+ function + "()> ";
+		location = "<" + logMsg.fileName + ":" + QString::number(line)+":"+ logMsg.function + "()> ";
 	}
-	
-	std::cout
-		<< "[" << _appname << " " << _name << "] <" 
-		<< LogLevelStrings[level] << "> " << location.toStdString() << msg
-		<< std::endl;
+
+	std::cout << QString("[" + _appname + " " + _name + "] <" + LogLevelStrings[level] + "> " + location + msg).toStdString() << std::endl;
 
 	if ( _syslogEnabled && level >= Logger::WARNING )
 		syslog (LogLevelSysLog[level], "%s", msg);
 }
 
 
+LoggerManager::LoggerManager()
+	: QObject()
+	, _loggerMaxMsgBufferSize(200)
+{
+}
+
+void LoggerManager::handleNewLogMessage(Logger::T_LOG_MESSAGE msg)
+{
+	_logMessageBuffer.append(msg);
+	if (_logMessageBuffer.length() > _loggerMaxMsgBufferSize)
+	{
+		_logMessageBuffer.erase(_logMessageBuffer.begin());
+	}
+
+	emit newLogMessage(msg);
+}
+
+LoggerManager* LoggerManager::getInstance()
+{
+	if ( _instance == nullptr )
+		_instance = new LoggerManager();
+	return _instance;
+}

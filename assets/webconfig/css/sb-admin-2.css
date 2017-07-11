@@ -13,7 +13,7 @@ body {
 }
 
 #page-wrapper {
-    padding: 0 15px;
+    padding: 0 0px;
     min-height: 568px;
     background-color: #fff;
 }
@@ -22,9 +22,13 @@ body {
     #page-wrapper {
         position: inherit;
         margin: 0 0 0 250px;
-        padding: 0 30px;
+        padding: 0 10px;
         border-left: 1px solid #e7e7e7;
     }
+}
+
+.nav a{
+	cursor:pointer;
 }
 
 .navbar-top-links {
@@ -33,10 +37,6 @@ body {
 
 .navbar-top-links li {
     display: inline-block;
-}
-
-.navbar-top-links li:last-child {
-    margin-right: 15px;
 }
 
 .navbar-top-links li a {

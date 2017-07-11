@@ -11,7 +11,8 @@
 #include <QHostInfo>
 #include <bonjour/bonjourserviceregister.h>
 #include <bonjour/bonjourrecord.h>
-
+#include <HyperionConfig.h>
+#include <exception>
 
 StaticFileServing::StaticFileServing (Hyperion *hyperion, QString baseUrl, quint16 port, QObject * parent)
 	:  QObject   (parent)
@@ -43,23 +44,30 @@ StaticFileServing::~StaticFileServing ()
 
 void StaticFileServing::onServerStarted (quint16 port)
 {
-	Info(_log, "started on port %d name \"%s\"", port ,_server->getServerName().toStdString().c_str());
+	Info(_log, "started on port %d name '%s'", port ,_server->getServerName().toStdString().c_str());
+	const QJsonObject & generalConfig = _hyperion->getQJsonConfig()["general"].toObject();
+	const QString mDNSDescr = generalConfig["name"].toString("") + "@" + QHostInfo::localHostName() + ":" + QString::number(port);
 
-        const std::string mDNSDescr = ( _server->getServerName().toStdString()
-                                        + "@" +
-                                        QHostInfo::localHostName().toStdString()
-                                        );
+	// txt record for zeroconf
+	QString id = _hyperion->id;
+	std::string version = HYPERION_VERSION;
+	std::vector<std::pair<std::string, std::string> > txtRecord = {{"id",id.toStdString()},{"version",version}};
 
 	BonjourServiceRegister *bonjourRegister_http = new BonjourServiceRegister();
 	bonjourRegister_http->registerService(
-		BonjourRecord(mDNSDescr.c_str(), "_http._tcp", QString()),
-		port
+		BonjourRecord(mDNSDescr, "_hyperiond-http._tcp", QString()),
+		port,
+		txtRecord
 		);
 	Debug(_log, "Web Config mDNS responder started");
+	
+	// json-rpc for http
+	_jsonProcessor = new JsonProcessor(QString("HTTP-API"),true);
 }
 
 void StaticFileServing::onServerStopped () {
 	Info(_log, "stopped %s", _server->getServerName().toStdString().c_str());
+	delete _jsonProcessor;
 }
 
 void StaticFileServing::onServerError (QString msg)
@@ -67,38 +75,93 @@ void StaticFileServing::onServerError (QString msg)
 	Error(_log, "%s", msg.toStdString().c_str());
 }
 
-static inline void printErrorToReply (QtHttpReply * reply, QString errorMessage)
+void StaticFileServing::printErrorToReply (QtHttpReply * reply, QtHttpReply::StatusCode code, QString errorMessage)
 {
-	reply->addHeader ("Content-Type", QByteArrayLiteral ("text/plain"));
-	reply->appendRawData (errorMessage.toLocal8Bit ());
+	reply->setStatusCode(code);
+	reply->addHeader ("Content-Type", QByteArrayLiteral ("text/html"));
+	QFile errorPageHeader(_baseUrl %  "/errorpages/header.html" );
+	QFile errorPageFooter(_baseUrl %  "/errorpages/footer.html" );
+	QFile errorPage      (_baseUrl %  "/errorpages/" % QString::number((int)code) % ".html" );
+
+	if (errorPageHeader.open (QFile::ReadOnly))
+	{
+		QByteArray data = errorPageHeader.readAll();
+		reply->appendRawData (data);
+		errorPageHeader.close ();
+	}
+
+	if (errorPage.open (QFile::ReadOnly))
+	{
+		QByteArray data = errorPage.readAll();
+		data = data.replace("{MESSAGE}", errorMessage.toLocal8Bit() );
+		reply->appendRawData (data);
+		errorPage.close ();
+	}
+	else
+	{
+		reply->appendRawData (QString(QString::number(code) + " - " +errorMessage).toLocal8Bit());
+	}
+
+	if (errorPageFooter.open (QFile::ReadOnly))
+	{
+		QByteArray data = errorPageFooter.readAll ();
+		reply->appendRawData (data);
+		errorPageFooter.close ();
+	}
 }
 
 void StaticFileServing::onRequestNeedsReply (QtHttpRequest * request, QtHttpReply * reply)
 {
 	QString command = request->getCommand ();
-	if (command == QStringLiteral ("GET"))
+	if (command == QStringLiteral ("GET") || command == QStringLiteral ("POST"))
 	{
 		QString path = request->getUrl ().path ();
 		QStringList uri_parts = path.split('/', QString::SkipEmptyParts);
 
 		// special uri handling for server commands
-		if ( ! uri_parts.empty() && uri_parts.at(0) == "cgi"  )
+		if ( ! uri_parts.empty() )
 		{
-			uri_parts.removeAt(0);
-			try
+			if(uri_parts.at(0) == "cgi")
 			{
-				_cgi.exec(uri_parts, request, reply);
+				uri_parts.removeAt(0);
+				try
+				{
+					_cgi.exec(uri_parts, request, reply);
+				}
+				catch(int err)
+				{
+					Error(_log,"Exception while executing cgi %s :  %d", path.toStdString().c_str(), err);
+					printErrorToReply (reply, QtHttpReply::InternalError, "script failed (" % path % ")");
+				}
+				catch(std::exception &e)
+				{
+					Error(_log,"Exception while executing cgi %s :  %s", path.toStdString().c_str(), e.what());
+					printErrorToReply (reply, QtHttpReply::InternalError, "script failed (" % path % ")");
+				}
+				return;
 			}
-			catch(...)
+			else if ( uri_parts.at(0) == "json-rpc" )
 			{
-				printErrorToReply (reply, "script failed (" % path % ")");
+				QMetaObject::Connection m_connection;
+				QByteArray data = request->getRawData();
+				QtHttpRequest::ClientInfo info = request->getClientInfo();
+
+				m_connection = QObject::connect(_jsonProcessor, &JsonProcessor::callbackMessage,
+					[reply](QJsonObject result) {
+						QJsonDocument doc(result);
+						reply->addHeader ("Content-Type", "application/json");
+						reply->appendRawData (doc.toJson());
+				});
+
+				_jsonProcessor->handleMessage(data,info.clientAddress.toString());
+				QObject::disconnect( m_connection );
+				return;
 			}
-			return;
 		}
 		Q_INIT_RESOURCE(WebConfig);
 
 		QFileInfo info(_baseUrl % "/" % path);
-		if ( path == "/" || path.isEmpty() || ! info.exists() )
+		if ( path == "/" || path.isEmpty()  )
 		{
 			path = "index.html";
 		}
@@ -124,17 +187,17 @@ void StaticFileServing::onRequestNeedsReply (QtHttpRequest * request, QtHttpRepl
 			}
 			else
 			{
-				printErrorToReply (reply, "Requested file " % path % " couldn't be open for reading !");
+				printErrorToReply (reply, QtHttpReply::Forbidden ,"Requested file: " % path);
 			}
 		}
 		else
 		{
-			printErrorToReply (reply, "Requested file " % path % " couldn't be found !");
+			printErrorToReply (reply, QtHttpReply::NotFound, "Requested file: " % path);
 		}
 	}
 	else
 	{
-		printErrorToReply (reply, "Unhandled HTTP/1.1 method " % command % " on static file server !");
+		printErrorToReply (reply, QtHttpReply::MethodNotAllowed,"Unhandled HTTP/1.1 method " % command);
 	}
 }
 

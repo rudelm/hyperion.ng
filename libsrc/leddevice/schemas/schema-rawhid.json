@@ -4,21 +4,31 @@
 	"properties":{
 		"VID": {
 			"type": "string",
-			"title":"VID",
+			"title":"edt_dev_spec_vid_title",
 			"default" : "0x2341",
 			"propertyOrder" : 1
 		},
 		"PID": {
 			"type": "string",
-			"title":"PID",
+			"title":"edt_dev_spec_pid_title",
 			"default" : "0x8036",
 			"propertyOrder" : 2
 		},
 		"delayAfterConnect": {
 			"type": "integer",
-			"title":"Delay after connect",
+			"title":"edt_dev_spec_delayAfterConnect_title",
 			"default": 0,
 			"propertyOrder" : 3
+		},
+		"latchTime": {
+			"type": "integer",
+			"title":"edt_dev_spec_latchtime_title",
+			"default": 10,
+			"append" : "edt_append_ms",
+			"minimum": 1,
+			"maximum": 1000,
+			"access" : "expert",
+			"propertyOrder" : 4
 		}
 	},
 	"additionalProperties": true

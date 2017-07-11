@@ -8,6 +8,7 @@
 #include <QSize>
 #include <QImage>
 #include <QPainter>
+#include <QMap>
 
 // Hyperion includes
 #include <hyperion/ImageProcessor.h>
@@ -18,7 +19,7 @@ class Effect : public QThread
 	Q_OBJECT
 
 public:
-    Effect(PyThreadState * mainThreadState, int priority, int timeout, const QString & script, const QString & name, const QJsonObject & args = QJsonObject());
+	Effect(PyThreadState * mainThreadState, int priority, int timeout, const QString & script, const QString & name, const QJsonObject & args = QJsonObject(), const QString & origin="System");
 	virtual ~Effect();
 
 	virtual void run();
@@ -43,7 +44,7 @@ public slots:
 signals:
 	void effectFinished(Effect * effect);
 
-	void setColors(int priority, const std::vector<ColorRgb> &ledColors, const int timeout_ms, bool clearEffects, hyperion::Components component);
+	void setColors(int priority, const std::vector<ColorRgb> &ledColors, const int timeout_ms, bool clearEffects, hyperion::Components componentconst, QString origin);
 
 private slots:
 	void effectFinished();
@@ -53,13 +54,21 @@ private:
 
 	// Wrapper methods for Python interpreter extra buildin methods
 	static PyMethodDef effectMethods[];
-	static PyObject* wrapSetColor(PyObject *self, PyObject *args);
-	static PyObject* wrapSetImage(PyObject *self, PyObject *args);
-	static PyObject* wrapAbort(PyObject *self, PyObject *args);
-	static PyObject* wrapImageShow(PyObject *self, PyObject *args);
+	static PyObject* wrapSetColor              (PyObject *self, PyObject *args);
+	static PyObject* wrapSetImage              (PyObject *self, PyObject *args);
+	static PyObject* wrapAbort                 (PyObject *self, PyObject *args);
+	static PyObject* wrapImageShow             (PyObject *self, PyObject *args);
 	static PyObject* wrapImageCanonicalGradient(PyObject *self, PyObject *args);
-	static PyObject* wrapImageRadialGradient(PyObject *self, PyObject *args);
-	static PyObject* wrapImageSolidFill(PyObject *self, PyObject *args);
+	static PyObject* wrapImageRadialGradient   (PyObject *self, PyObject *args);
+	static PyObject* wrapImageSolidFill        (PyObject *self, PyObject *args);
+	static PyObject* wrapImageDrawLine         (PyObject *self, PyObject *args);
+	static PyObject* wrapImageDrawRect         (PyObject *self, PyObject *args);
+	static PyObject* wrapImageSetPixel         (PyObject *self, PyObject *args);
+	static PyObject* wrapImageGetPixel         (PyObject *self, PyObject *args);
+	static PyObject* wrapImageSave             (PyObject *self, PyObject *args);
+	static PyObject* wrapImageMinSize          (PyObject *self, PyObject *args);
+	static PyObject* wrapImageWidth            (PyObject *self, PyObject *args);
+	static PyObject* wrapImageHeight           (PyObject *self, PyObject *args);
 
 	static Effect * getEffect();
 
@@ -70,7 +79,8 @@ private:
 	static void PyInit_hyperion();
 #endif
 
-private:
+	void addImage();
+
 	PyThreadState * _mainThreadState;
 
 	const int _priority;
@@ -92,11 +102,13 @@ private:
 	ImageProcessor * _imageProcessor;
 
 	/// Buffer for colorData
-	std::vector<ColorRgb> _colors;
+	QVector<ColorRgb> _colors;
 	
+	
+	QString      _origin;
 	QSize _imageSize;
-	
-	QImage * _image;
-	QPainter * _painter;
+	QImage       _image;
+	QPainter*    _painter;
+	QVector<QImage> _imageStack;
 };
 	

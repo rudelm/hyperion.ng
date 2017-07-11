@@ -17,7 +17,6 @@ SET(Leddevice_QT_HEADERS
 	${CURRENT_HEADER_DIR}/LedDevice.h
 	${CURRENT_SOURCE_DIR}/ProviderRs232.h
 	${CURRENT_SOURCE_DIR}/LedDeviceAdalight.h
-	${CURRENT_SOURCE_DIR}/LedDeviceAdalightApa102.h
 	${CURRENT_SOURCE_DIR}/LedDeviceAtmoOrb.h
 	${CURRENT_SOURCE_DIR}/LedDevicePhilipsHue.h
 	${CURRENT_SOURCE_DIR}/ProviderHID.h
@@ -38,6 +37,7 @@ SET(Leddevice_HEADERS
 	${CURRENT_SOURCE_DIR}/LedDeviceUdpRaw.h
 	${CURRENT_SOURCE_DIR}/LedDeviceUdpH801.h
 	${CURRENT_SOURCE_DIR}/LedDeviceUdpE131.h
+	${CURRENT_SOURCE_DIR}/LedDeviceUdpArtNet.h
 	${CURRENT_SOURCE_DIR}/ProviderUdp.h
 	${CURRENT_SOURCE_DIR}/LedDeviceHyperionUsbasp.h
 	${CURRENT_SOURCE_DIR}/LedDeviceTpm2.h
@@ -53,7 +53,6 @@ SET(Leddevice_SOURCES
 	${CURRENT_SOURCE_DIR}/ProviderHID.cpp
 
 	${CURRENT_SOURCE_DIR}/LedDeviceAdalight.cpp
-	${CURRENT_SOURCE_DIR}/LedDeviceAdalightApa102.cpp
 	${CURRENT_SOURCE_DIR}/LedDeviceAtmoOrb.cpp
 	${CURRENT_SOURCE_DIR}/LedDeviceRawHID.cpp
 	${CURRENT_SOURCE_DIR}/LedDeviceLightpack.cpp
@@ -67,6 +66,7 @@ SET(Leddevice_SOURCES
 	${CURRENT_SOURCE_DIR}/LedDeviceUdpRaw.cpp
 	${CURRENT_SOURCE_DIR}/LedDeviceUdpH801.cpp
 	${CURRENT_SOURCE_DIR}/LedDeviceUdpE131.cpp
+	${CURRENT_SOURCE_DIR}/LedDeviceUdpArtNet.cpp
 	${CURRENT_SOURCE_DIR}/ProviderUdp.cpp
 	${CURRENT_SOURCE_DIR}/LedDeviceHyperionUsbasp.cpp
 	${CURRENT_SOURCE_DIR}/LedDevicePhilipsHue.cpp
@@ -84,6 +84,7 @@ if(ENABLE_SPIDEV)
 		${CURRENT_SOURCE_DIR}/LedDeviceP9813.h
 		${CURRENT_SOURCE_DIR}/LedDeviceWs2801.h
 		${CURRENT_SOURCE_DIR}/LedDeviceWs2812SPI.h
+		${CURRENT_SOURCE_DIR}/LedDeviceSk6822SPI.h
 		${CURRENT_SOURCE_DIR}/LedDeviceSk6812SPI.h
 		${CURRENT_SOURCE_DIR}/LedDeviceAPA102.h
 	)
@@ -95,6 +96,7 @@ if(ENABLE_SPIDEV)
 		${CURRENT_SOURCE_DIR}/LedDeviceP9813.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceWs2801.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceWs2812SPI.cpp
+		${CURRENT_SOURCE_DIR}/LedDeviceSk6822SPI.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceSk6812SPI.cpp
 		${CURRENT_SOURCE_DIR}/LedDeviceAPA102.cpp
 	)
